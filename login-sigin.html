@@ -1,0 +1,272 @@
+    <!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Entrar ou Criar Conta</title>
+  <style>
+    :root {
+      --bg: #f4f1ec;
+      --card: #ffffff;
+      --text: #1f2430;
+      --muted: #6b7280;
+      --border: #d9d4cb;
+      --accent: #2f5d50;
+      --accent-hover: #244a40;
+      --focus: rgba(47, 93, 80, 0.25);
+      --radius: 12px;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #14181d;
+        --card: #1d232b;
+        --text: #eceff4;
+        --muted: #9aa4b2;
+        --border: #323b46;
+        --accent: #5fa893;
+        --accent-hover: #78bba7;
+        --focus: rgba(95, 168, 147, 0.3);
+      }
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 24px 16px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      line-height: 1.5;
+    }
+
+    /* Controles das abas (ocultos) */
+    .tab-radio {
+      position: absolute;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .card {
+      width: 100%;
+      max-width: 400px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 32px 28px 28px;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    }
+
+    .brand {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+
+    .brand h1 {
+      font-size: 1.5rem;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .brand p {
+      color: var(--muted);
+      font-size: 0.95rem;
+      margin-top: 4px;
+    }
+
+    /* Abas */
+    .tabs {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 4px;
+      padding: 4px;
+      margin-bottom: 24px;
+      background: var(--bg);
+      border-radius: var(--radius);
+    }
+
+    .tabs label {
+      text-align: center;
+      padding: 10px 0;
+      border-radius: 9px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: background 0.2s, color 0.2s;
+    }
+
+    #tab-login:checked ~ .card label[for="tab-login"],
+    #tab-cadastro:checked ~ .card label[for="tab-cadastro"] {
+      background: var(--card);
+      color: var(--text);
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+    }
+
+    #tab-login:focus-visible ~ .card label[for="tab-login"],
+    #tab-cadastro:focus-visible ~ .card label[for="tab-cadastro"] {
+      outline: 3px solid var(--focus);
+    }
+
+    /* Formulários */
+    form { display: none; }
+
+    #tab-login:checked ~ .card .form-login,
+    #tab-cadastro:checked ~ .card .form-cadastro {
+      display: block;
+    }
+
+    .field { margin-bottom: 16px; }
+
+    .field label {
+      display: block;
+      font-size: 0.875rem;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 12px 14px;
+      font: inherit;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+
+    .field input::placeholder { color: var(--muted); opacity: 0.7; }
+
+    .field input:focus {
+      outline: none;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px var(--focus);
+    }
+
+    .check {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      margin-bottom: 20px;
+      font-size: 0.875rem;
+      color: var(--muted);
+    }
+
+    .check input {
+      margin-top: 3px;
+      width: 16px;
+      height: 16px;
+      accent-color: var(--accent);
+    }
+
+    .check a { color: var(--accent); }
+
+    .btn {
+      width: 100%;
+      padding: 13px;
+      font: inherit;
+      font-weight: 600;
+      color: #fff;
+      background: var(--accent);
+      border: none;
+      border-radius: var(--radius);
+      cursor: pointer;
+      transition: background 0.2s, transform 0.1s;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .btn { color: #0f1a16; }
+    }
+
+    .btn:hover { background: var(--accent-hover); }
+    .btn:active { transform: scale(0.99); }
+    .btn:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+    .switch {
+      text-align: center;
+      margin-top: 20px;
+      font-size: 0.9rem;
+      color: var(--muted);
+    }
+
+    .switch label {
+      color: var(--accent);
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .switch label:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+  <input type="radio" name="tab" id="tab-login" class="tab-radio" checked>
+  <input type="radio" name="tab" id="tab-cadastro" class="tab-radio">
+
+  <main class="card">
+    <header class="brand">
+      <h1>Bem-vindo</h1>
+      <p>Acesse sua conta ou crie uma nova.</p>
+    </header>
+
+    <div class="tabs" role="presentation">
+      <label for="tab-login">Entrar</label>
+      <label for="tab-cadastro">Cadastrar</label>
+    </div>
+
+    <!-- LOGIN -->
+    <form class="form-login" action="#" method="post">
+      <div class="field">
+        <label for="login-email">E-mail</label>
+        <input type="email" id="login-email" name="email" placeholder="voce@exemplo.com" autocomplete="email" required>
+      </div>
+
+      <div class="field">
+        <label for="login-senha">Senha</label>
+        <input type="password" id="login-senha" name="senha" placeholder="Sua senha" autocomplete="current-password" required>
+      </div>
+
+      <button type="submit" class="btn">Entrar</button>
+
+      <p class="switch">Ainda não tem conta? <label for="tab-cadastro">Cadastre-se</label></p>
+    </form>
+
+    <!-- CADASTRO -->
+    <form class="form-cadastro" action="#" method="post">
+      <div class="field">
+        <label for="cad-nome">Nome completo</label>
+        <input type="text" id="cad-nome" name="nome" placeholder="Seu nome" autocomplete="name" required>
+      </div>
+
+      <div class="field">
+        <label for="cad-email">E-mail</label>
+        <input type="email" id="cad-email" name="email" placeholder="voce@exemplo.com" autocomplete="email" required>
+      </div>
+
+      <div class="field">
+        <label for="cad-senha">Senha</label>
+        <input type="password" id="cad-senha" name="senha" placeholder="Mínimo de 8 caracteres" minlength="8" autocomplete="new-password" required>
+      </div>
+
+      <div class="field">
+        <label for="cad-confirma">Confirmar senha</label>
+        <input type="password" id="cad-confirma" name="confirmar_senha" placeholder="Repita a senha" minlength="8" autocomplete="new-password" required>
+      </div>
+
+      <label class="check">
+        <input type="checkbox" name="termos" required>
+        <span>Li e aceito os <a href="#">termos de uso</a> e a <a href="#">política de privacidade</a>.</span>
+      </label>
+
+      <button type="submit" class="btn">Criar conta</button>
+
+      <p class="switch">Já tem uma conta? <label for="tab-login">Entrar</label></p>
+    </form>
+  </main>
+
+</body>
+</html>
