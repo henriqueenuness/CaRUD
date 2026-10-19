@@ -14,6 +14,10 @@
       --accent: #2f5d50;
       --accent-hover: #244a40;
       --focus: rgba(47, 93, 80, 0.25);
+      --erro-bg: #fdecec;
+      --erro-text: #9b1c1c;
+      --ok-bg: #e8f5ee;
+      --ok-text: #1d5c3a;
       --radius: 12px;
     }
 
@@ -27,6 +31,10 @@
         --accent: #5fa893;
         --accent-hover: #78bba7;
         --focus: rgba(95, 168, 147, 0.3);
+        --erro-bg: #3a1d1f;
+        --erro-text: #f4a3a3;
+        --ok-bg: #1b3328;
+        --ok-text: #9be0b9;
       }
     }
 
@@ -119,6 +127,27 @@
       display: block;
     }
 
+    /* Mensagens de erro / sucesso */
+    .msg {
+      display: none;
+      margin-bottom: 16px;
+      padding: 10px 14px;
+      border-radius: var(--radius);
+      font-size: 0.9rem;
+    }
+
+    .msg.erro {
+      display: block;
+      background: var(--erro-bg);
+      color: var(--erro-text);
+    }
+
+    .msg.ok {
+      display: block;
+      background: var(--ok-bg);
+      color: var(--ok-text);
+    }
+
     .field { margin-bottom: 16px; }
 
     .field label {
@@ -147,26 +176,9 @@
       box-shadow: 0 0 0 4px var(--focus);
     }
 
-    .check {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      margin-bottom: 20px;
-      font-size: 0.875rem;
-      color: var(--muted);
-    }
-
-    .check input {
-      margin-top: 3px;
-      width: 16px;
-      height: 16px;
-      accent-color: var(--accent);
-    }
-
-    .check a { color: var(--accent); }
-
     .btn {
       width: 100%;
+      margin-top: 4px;
       padding: 13px;
       font: inherit;
       font-weight: 600;
@@ -219,7 +231,9 @@
     </div>
 
     <!-- LOGIN -->
-    <form class="form-login" action="#" method="post">
+    <form class="form-login" action="/api/login" method="post">
+      <p class="msg" id="msg-login" role="alert"></p>
+
       <div class="field">
         <label for="login-email">E-mail</label>
         <input type="email" id="login-email" name="email" placeholder="voce@exemplo.com" autocomplete="email" required>
@@ -236,7 +250,9 @@
     </form>
 
     <!-- CADASTRO -->
-    <form class="form-cadastro" action="#" method="post">
+    <form class="form-cadastro" action="/api/cadastrar" method="post">
+      <p class="msg" id="msg-cadastro" role="alert"></p>
+
       <div class="field">
         <label for="cad-nome">Nome completo</label>
         <input type="text" id="cad-nome" name="nome" placeholder="Seu nome" autocomplete="name" required>
@@ -257,16 +273,54 @@
         <input type="password" id="cad-confirma" name="confirmar_senha" placeholder="Repita a senha" minlength="8" autocomplete="new-password" required>
       </div>
 
-      <label class="check">
-        <input type="checkbox" name="termos" required>
-        <span>Li e aceito os <a href="#">termos de uso</a> e a <a href="#">política de privacidade</a>.</span>
-      </label>
-
       <button type="submit" class="btn">Criar conta</button>
 
       <p class="switch">Já tem uma conta? <label for="tab-login">Entrar</label></p>
     </form>
   </main>
+
+  <script>
+    // Lê a URL (ex.: /login.html?aba=cadastro&erro=senhas) e mostra a aba e a mensagem certas
+    (function () {
+      const params = new URLSearchParams(location.search);
+      const erro = params.get("erro");
+      const ok = params.get("ok");
+
+      const msgLogin = document.getElementById("msg-login");
+      const msgCadastro = document.getElementById("msg-cadastro");
+
+      function mostrar(el, tipo, texto) {
+        el.textContent = texto;
+        el.className = "msg " + tipo;
+      }
+
+      if (params.get("aba") === "cadastro") {
+        document.getElementById("tab-cadastro").checked = true;
+      }
+
+      if (ok === "cadastro") {
+        mostrar(msgLogin, "ok", "Conta criada! Entre com seu e-mail e senha.");
+      }
+
+      if (erro === "login") {
+        mostrar(msgLogin, "erro", "E-mail ou senha incorretos.");
+      } else if (erro === "senhas") {
+        mostrar(msgCadastro, "erro", "As senhas não conferem.");
+      } else if (erro === "senha-curta") {
+        mostrar(msgCadastro, "erro", "A senha precisa ter pelo menos 8 caracteres.");
+      } else if (erro === "cadastro") {
+        mostrar(msgCadastro, "erro", "Não foi possível cadastrar. Verifique os dados ou use outro e-mail.");
+      } else if (erro === "banco") {
+        const alvo = params.get("aba") === "cadastro" ? msgCadastro : msgLogin;
+        mostrar(alvo, "erro", "Erro de conexão com o banco. Tente novamente.");
+      }
+
+      // Limpa a URL para a mensagem não reaparecer ao atualizar a página
+      if (location.search) {
+        history.replaceState(null, "", location.pathname);
+      }
+    })();
+  </script>
 
 </body>
 </html>

@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Home</title>
+</head>
+<body>
+    <h1>Bem-vindo!</h1>
+    <p>Você está logado como: <strong id="usuario">...</strong></p>
+    <a href="/api/logout">Sair</a>
+
+    <script>
+        fetch("/api/me")
+            .then(r => r.ok ? r.text() : Promise.reject())
+            .then(email => document.getElementById("usuario").textContent = email)
+            .catch(() => location.href = "/login.html");
+    </script>
+</body>
+</html>
