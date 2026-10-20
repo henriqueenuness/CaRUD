@@ -32,7 +32,7 @@ public class Servidor {
         server.createContext("/api/login", Servidor::tratarLogin);
         server.createContext("/api/cadastrar", Servidor::tratarCadastro);
         server.createContext("/api/logout", Servidor::tratarLogout);
-        server.createContext("/api/me", Servidor::tratarMe);
+        server.createContext("/qwe/me", Servidor::tratarMe);
 
         server.start();
         System.out.println("Servidor rodando em http://localhost:" + PORTA);
