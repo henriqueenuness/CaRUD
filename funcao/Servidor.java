@@ -31,8 +31,10 @@ public class Servidor {
         server.createContext("/", Servidor::tratarArquivos);
         server.createContext("/api/login", Servidor::tratarLogin);
         server.createContext("/api/cadastrar", Servidor::tratarCadastro);
+        server.createContext("/api/car/new", Servidor::newCar);
+        server.createContext("/api/car/delete", Servidor::deleteCar);
         server.createContext("/api/logout", Servidor::tratarLogout);
-        server.createContext("/qwe/me", Servidor::tratarMe);
+        server.createContext("/api/me", Servidor::tratarMe);
 
         server.start();
         System.out.println("Servidor rodando em http://localhost:" + PORTA);
@@ -118,6 +120,23 @@ public class Servidor {
     // CADASTRO  (POST /api/cadastrar
     //            campos: nome, email, senha, confirmar_senha)
     // ---------------------------------------------------------
+    private static void newCar(HttpExchange ex) throws IOException {
+        if (!ex.getRequestMethod().equals("POST")) {
+            enviar(ex, 405, "Use POST");
+            return;
+        }
+        Map<String, String> campos = lerFormulario(ex);
+        String placa = campos.getOrDefault("placa", "");
+        String velocidade = campos.getOrDefault("velocidade", "");
+        String bateria = campos.getOrDefault("bateria", "");
+        String potencia = campos.getOrDefault("potencia", "");
+        String pessoas = campos.getOrDefault("pessoas", "");
+        String combustivel = campos.getOrDefault("combustivel", "");
+        String ano = campos.getOrDefault("ano", "");
+        String marca = campos.getOrDefault("marca", "");
+        String chassi = campos.getOrDefault("chassi", "");
+    }
+    private static void deleteCar(HttpExchange ex) throws IOException {}
     private static void tratarCadastro(HttpExchange ex) throws IOException {
         if (!ex.getRequestMethod().equals("POST")) {
             enviar(ex, 405, "Use POST");

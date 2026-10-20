@@ -3,3 +3,4 @@
 3. digite no terminal: git clone https://github.com/henriqueenuness/CaRUD
 4. depois: cd CaRUD (seguindo letras minusculas e maiusculas)
 5. seguido de: java -cp "out;lib/*" Servidor
+6. clique no http://localhost:8080 segurando a tecla "CTRL"
