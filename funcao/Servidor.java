@@ -12,6 +12,11 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
+import java.util.ArrayList;
+import java.util.List;
 
 public class Servidor {
 
@@ -33,6 +38,7 @@ public class Servidor {
         server.createContext("/api/cadastrar", Servidor::tratarCadastro);
         server.createContext("/api/car/new", Servidor::newCar);
         server.createContext("/api/car/delete", Servidor::deleteCar);
+        server.createContext("/api/car/search", Servidor::buscarCarros);
         server.createContext("/api/logout", Servidor::tratarLogout);
         server.createContext("/api/me", Servidor::tratarMe);
 
@@ -125,18 +131,89 @@ public class Servidor {
             enviar(ex, 405, "Use POST");
             return;
         }
+        if (emailLogado(ex) == null) {
+            enviar(ex, 401, "Não logado");
+            return;
+        }
+
         Map<String, String> campos = lerFormulario(ex);
-        String placa = campos.getOrDefault("placa", "");
-        String velocidade = campos.getOrDefault("velocidade", "");
-        String bateria = campos.getOrDefault("bateria", "");
-        String potencia = campos.getOrDefault("potencia", "");
-        String pessoas = campos.getOrDefault("pessoas", "");
-        String combustivel = campos.getOrDefault("combustivel", "");
-        String ano = campos.getOrDefault("ano", "");
-        String marca = campos.getOrDefault("marca", "");
-        String chassi = campos.getOrDefault("chassi", "");
+        String placa       = campos.getOrDefault("placa", "").trim().toUpperCase();
+        String chassi      = campos.getOrDefault("num_chassi", "").trim();
+        String marca       = campos.getOrDefault("marca", "").trim();
+        String cor         = campos.getOrDefault("cor", "").trim();
+        String combustivel = campos.getOrDefault("combustivel", "").trim().toLowerCase();
+        String motor       = campos.getOrDefault("motor", "").trim();
+
+        int ano, capacidade, velocidade;
+        try {
+            ano = Integer.parseInt(campos.getOrDefault("ano", "").trim());
+            capacidade = Integer.parseInt(campos.getOrDefault("capacidade", "").trim());
+            velocidade = Integer.parseInt(campos.getOrDefault("velocidade", "").trim());
+        } catch (NumberFormatException e) {
+            redirecionar(ex, "/home.html?erro=dados#adicionar", null);
+            return;
+        }
+
+        // validações que o HTML sozinho não garante
+        boolean valido =
+                placa.matches("[A-Z]{3}[0-9][A-Z][0-9]{2}")
+            && chassi.matches("[0-9]{17}")
+            && !marca.isEmpty() && marca.length() <= 50
+            && !cor.isEmpty() && cor.length() <= 50
+            && !motor.isEmpty() && motor.length() <= 100
+            && (combustivel.equals("gasolina") || combustivel.equals("hibrido") || combustivel.equals("eletrico"))
+            && ano >= 1900 && ano <= 2027
+            && capacidade >= 1 && capacidade <= 9
+            && velocidade >= 1 && velocidade <= 500;
+
+        if (!valido) {
+            redirecionar(ex, "/home.html?erro=dados#adicionar", null);
+            return;
+        }
+
+        String sql = "INSERT INTO carros "
+                + "(placa, num_chassi, marca, ano, cor, combustivel, capacidade, motor, velocidade) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        JdbcConnection db = new JdbcConnection();
+        try {
+            Connection con = db.getConnection();
+            if (con == null) {
+                redirecionar(ex, "/home.html?erro=banco#adicionar", null);
+                return;
+            }
+
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setString(1, placa);
+                ps.setString(2, chassi);
+                ps.setString(3, marca);
+                ps.setInt(4, ano);
+                ps.setString(5, cor);
+                ps.setString(6, combustivel);
+                ps.setInt(7, capacidade);
+                ps.setString(8, motor);
+                ps.setInt(9, velocidade);
+                ps.executeUpdate();
+                redirecionar(ex, "/home.html?ok=carro", null);
+            }
+        } catch (SQLException e) {
+            if ("23505".equals(e.getSQLState())) {   // placa ou chassi já cadastrados (UNIQUE)
+                redirecionar(ex, "/home.html?erro=duplicado#adicionar", null);
+            } else {
+                e.printStackTrace();
+                redirecionar(ex, "/home.html?erro=banco#adicionar", null);
+            }
+        } finally {
+            db.closeConnection();
+        }
     }
     private static void deleteCar(HttpExchange ex) throws IOException {}
+    private static void adicionarContem(StringBuilder sql, List<Object> params, String coluna, String valor) {
+    valor = valor.trim().replaceAll("[%_\\\\]", "");
+    if (valor.isEmpty()) return;
+    sql.append(" AND LOWER(").append(coluna).append(") LIKE LOWER(?)");   // "coluna" é fixa no código
+    params.add("%" + valor + "%");
+    }
     private static void tratarCadastro(HttpExchange ex) throws IOException {
         if (!ex.getRequestMethod().equals("POST")) {
             enviar(ex, 405, "Use POST");
@@ -178,7 +255,152 @@ public class Servidor {
             db.closeConnection();
         }
     }
+    // READ (busca de carros) //
+    private static void buscarCarros(HttpExchange ex) throws IOException {
+    if (!ex.getRequestMethod().equals("GET")) {
+        enviar(ex, 405, "Use GET");
+        return;
+    }
+    if (emailLogado(ex) == null) {
+        enviar(ex, 401, "Não logado");
+        return;
+    }
 
+    Map<String, String> f = lerQuery(ex);
+    StringBuilder sql = new StringBuilder(
+        "SELECT num_chassi, placa, marca, ano, cor, combustivel, capacidade, motor, velocidade "
+      + "FROM carros WHERE 1=1");
+    List<Object> params = new ArrayList<>();
+
+    try {
+        // texto: contém o que foi digitado (sem diferenciar maiúsculas/minúsculas)
+        adicionarContem(sql, params, "placa", f.getOrDefault("placa", ""));
+        adicionarContem(sql, params, "num_chassi", f.getOrDefault("num_chassi", ""));
+        adicionarContem(sql, params, "cor", f.getOrDefault("cor", ""));
+        adicionarContem(sql, params, "motor", f.getOrDefault("motor", ""));
+
+        // texto: igual
+        String marca = f.getOrDefault("marca", "").trim();
+        if (!marca.isEmpty()) {
+            sql.append(" AND LOWER(marca) = LOWER(?)");
+            params.add(marca);
+        }
+
+        String comb = f.getOrDefault("combustivel", "").trim();
+        if (!comb.isEmpty()) {
+            sql.append(" AND LOWER(combustivel) = LOWER(?)");
+            params.add(comb);
+        }
+
+        // números exatos
+        Double ano = numero(f, "ano");
+        if (ano != null) { sql.append(" AND ano = ?"); params.add(ano.intValue()); }
+
+        Double capacidade = numero(f, "capacidade");
+        if (capacidade != null) { sql.append(" AND capacidade = ?"); params.add(capacidade.intValue()); }
+
+        // número "parecido": margem de 20% para mais ou para menos
+        adicionarFaixa(sql, params, "velocidade", numero(f, "velocidade"));
+    } catch (NumberFormatException e) {
+        enviar(ex, 400, "Número inválido");
+        return;
+    }
+
+    sql.append(" ORDER BY num_chassi LIMIT 100");
+
+    JdbcConnection db = new JdbcConnection();
+    try {
+        Connection con = db.getConnection();
+        if (con == null) {
+            enviar(ex, 500, "Erro de conexão com o banco");
+            return;
+        }
+
+        try (PreparedStatement ps = con.prepareStatement(sql.toString())) {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setObject(i + 1, params.get(i));
+            }
+
+            StringBuilder json = new StringBuilder("[");
+            try (ResultSet rs = ps.executeQuery()) {
+                boolean primeiro = true;
+                while (rs.next()) {
+                    if (!primeiro) json.append(",");
+                    primeiro = false;
+
+                    json.append("{")
+                        .append("\"num_chassi\":").append(js(rs.getString("num_chassi"))).append(",")
+                        .append("\"placa\":").append(js(rs.getString("placa"))).append(",")
+                        .append("\"marca\":").append(js(rs.getString("marca"))).append(",")
+                        .append("\"ano\":").append(rs.getInt("ano")).append(",")
+                        .append("\"cor\":").append(js(rs.getString("cor"))).append(",")
+                        .append("\"combustivel\":").append(js(rs.getString("combustivel"))).append(",")
+                        .append("\"capacidade\":").append(rs.getInt("capacidade")).append(",")
+                        .append("\"motor\":").append(js(rs.getString("motor"))).append(",")
+                        .append("\"velocidade\":").append(rs.getInt("velocidade"))
+                        .append("}");
+                }
+            }
+            json.append("]");
+
+            enviarBytes(ex, 200, "application/json; charset=utf-8",
+                        json.toString().getBytes(StandardCharsets.UTF_8));
+        }
+    } catch (SQLException e) {
+        e.printStackTrace();
+        enviar(ex, 500, "Erro ao consultar o banco");
+    } finally {
+        db.closeConnection();
+    }
+}
+
+// ----- auxiliares da consulta -----
+
+private static Map<String, String> lerQuery(HttpExchange ex) {
+    Map<String, String> campos = new HashMap<>();
+    String q = ex.getRequestURI().getRawQuery();
+    if (q == null) return campos;
+
+    for (String par : q.split("&")) {
+        if (par.isEmpty()) continue;
+        String[] kv = par.split("=", 2);
+        String chave = URLDecoder.decode(kv[0], StandardCharsets.UTF_8);
+        String valor = kv.length > 1 ? URLDecoder.decode(kv[1], StandardCharsets.UTF_8) : "";
+        campos.put(chave, valor);
+    }
+    return campos;
+}
+
+private static Double numero(Map<String, String> f, String nome) {
+    String v = f.getOrDefault(nome, "").trim();
+    return v.isEmpty() ? null : Double.valueOf(v);   // pode lançar NumberFormatException
+}
+
+private static void adicionarFaixa(StringBuilder sql, List<Object> params, String coluna, Double valor) {
+    if (valor == null) return;
+    sql.append(" AND ").append(coluna).append(" BETWEEN ? AND ?");   // "coluna" é fixa no código, nunca vem do usuário
+    params.add(valor * 0.8);
+    params.add(valor * 1.2);
+}
+
+// transforma texto em string JSON (com aspas e escapes)
+private static String js(String s) {
+    if (s == null) return "null";
+    StringBuilder sb = new StringBuilder("\"");
+    for (char c : s.toCharArray()) {
+        switch (c) {
+            case '"':  sb.append("\\\""); break;
+            case '\\': sb.append("\\\\"); break;
+            case '\n': sb.append("\\n");  break;
+            case '\r': sb.append("\\r");  break;
+            case '\t': sb.append("\\t");  break;
+            default:
+                if (c < 0x20) sb.append(String.format("\\u%04x", (int) c));
+                else sb.append(c);
+        }
+    }
+    return sb.append('"').toString();
+}
     // ---------------------------------------------------------
     // LOGOUT  (GET /api/logout)
     // ---------------------------------------------------------
