@@ -7,11 +7,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
-import java.sql.Connection;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.sql.*;
 
 public class Servidor {
 
@@ -120,22 +120,60 @@ public class Servidor {
     // CADASTRO  (POST /api/cadastrar
     //            campos: nome, email, senha, confirmar_senha)
     // ---------------------------------------------------------
-    private static void newCar(HttpExchange ex) throws IOException {
+    private static void newCar(HttpExchange ex) throws IOException {//os comentarios a seguir não são de IA, mas sim do imbecil do henrique tentando entender essa bomba de linguagem
+           System.out.println("newCar chamado: " + ex.getRequestMethod());
         if (!ex.getRequestMethod().equals("POST")) {
-            enviar(ex, 405, "Use POST");
+            enviar(ex,405, "Use POST");
             return;
         }
-        Map<String, String> campos = lerFormulario(ex);
-        String placa = campos.getOrDefault("placa", "");
-        String velocidade = campos.getOrDefault("velocidade", "");
-        String bateria = campos.getOrDefault("bateria", "");
-        String potencia = campos.getOrDefault("potencia", "");
-        String pessoas = campos.getOrDefault("pessoas", "");
-        String combustivel = campos.getOrDefault("combustivel", "");
-        String ano = campos.getOrDefault("ano", "");
-        String marca = campos.getOrDefault("marca", "");
-        String chassi = campos.getOrDefault("chassi", "");
-    }
+        Map<String, String> campos = lerFormulario(ex); 
+        
+        JdbcConnection db = new JdbcConnection();
+            try (Connection con = db.getConnection()) {
+                if (con == null) {
+                    enviar(ex, 500, "Sem conexão com o banco");
+                    return;
+                }
+
+                String placa = campos.getOrDefault("placa", "");
+                String num_chassi = campos.getOrDefault("chassi", "0"); //era pra ser int, mas o animal do heittor colocou no banco o NÚMERO do chassi como varchar, e isso não é problema meu
+                String marca = campos.getOrDefault("marca", "");
+                Integer ano = Integer.parseInt(campos.getOrDefault("ano", "0"));
+                String cor = campos.getOrDefault("cor", "");
+                String combustivel = campos.getOrDefault("combustivel", "");
+                Integer capacidade = Integer.parseInt(campos.getOrDefault("pessoas", "0"));//pessoas é como está no formulario, capacidade é o nome da variavel pra ficar mais coerente pra adicionar ao db
+                double bateria = Double.parseDouble(campos.getOrDefault("bateria", "0").trim().replace(",", "."));
+                String bat = (bateria % 1 == 0) ? String.valueOf((int) bateria) : String.valueOf(bateria);
+                Integer potencia = Integer.parseInt(campos.getOrDefault("potencia", "0"));
+                String motor = (bateria == 0) ? potencia + "Cv" : potencia + "Cv " + bat + "kWh";
+                Integer velocidade = Integer.parseInt(campos.getOrDefault("velocidade", "0"));
+
+                String sql = "INSERT INTO carros (placa, num_chassi, marca, ano, cor, combustivel, capacidade, motor, velocidade) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"; //primeiro como está no banco
+                try (PreparedStatement stmt = con.prepareStatement(sql)) {
+                    stmt.setString(1, placa);
+                    stmt.setString(2, num_chassi);
+                    stmt.setString(3, marca);
+                    stmt.setInt(4, ano);
+                    stmt.setString(5, cor);
+                    stmt.setString(6, combustivel);
+                    stmt.setInt(7, capacidade);
+                    stmt.setString(8, motor);
+                    stmt.setInt(9, velocidade);
+                    stmt.executeUpdate();
+                    enviar(ex, 200, "OK"); 
+
+                    }
+                    //redirecionar(ex, "/login.html?ok=1", null);
+            } //fecha o primeiro try
+
+            catch (NumberFormatException e) {
+                e.printStackTrace();
+                enviar(ex, 400, "Valor numérico inválido");
+            } catch (SQLException e) {
+                e.printStackTrace();
+                enviar(ex, 500, "Erro no banco");
+            }
+        }
     private static void deleteCar(HttpExchange ex) throws IOException {}
     private static void tratarCadastro(HttpExchange ex) throws IOException {
         if (!ex.getRequestMethod().equals("POST")) {
