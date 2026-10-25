@@ -5,7 +5,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Consulta de Carros</title>
-  .alert.ok { color: var(--accent); border-color: var(--accent); }
   <style>
     :root {
       --bg: #f4f1ec;
@@ -240,6 +239,46 @@
       font-size: 0.9rem;
     }
     .topo a { color: var(--accent); font-weight: 600; }
+    /* ===== Atualizar / Deletar ===== */
+    .car-painel { margin-bottom: 8px; }
+    .car-painel .car-detalhes { margin-bottom: 10px; }
+
+    .acoes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .car-edicao {
+      margin-top: 14px;
+      padding-top: 14px;
+      border-top: 1px solid var(--border);
+    }
+
+    .btn-danger {
+      color: var(--danger);
+      background: transparent;
+      border-color: var(--danger);
+    }
+    .btn-danger:hover {
+      color: #fff;
+      background: var(--danger);
+      border-color: var(--danger);
+    }
+
+    dialog {
+      margin: auto;
+      width: min(420px, calc(100vw - 32px));
+      padding: 24px;
+      color: var(--text);
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+    }
+    dialog::backdrop { background: rgba(0, 0, 0, 0.55); }
+    dialog h2 { margin-bottom: 8px; font-size: 1.15rem; }
+    dialog p { margin-bottom: 14px; color: var(--muted); }
+    dialog .alert { color: var(--danger); }
   </style>
 </head>
 <body>
@@ -481,7 +520,15 @@
 
     </main>
   </div>
-
+    <dialog id="dlg-excluir">
+    <h2>Deletar carro?</h2>
+    <p id="dlg-texto"></p>
+    <p class="alert" id="dlg-erro" role="alert" hidden></p>
+    <div class="acoes">
+      <button type="button" class="btn btn-secondary" id="dlg-cancelar">Cancelar</button>
+      <button type="button" class="btn btn-danger" id="dlg-confirmar">Sim, deletar</button>
+    </div>
+    </dialog>
   <script>
     // Mostra quem está logado (ou volta para o login)
     fetch("/api/me")
@@ -495,8 +542,18 @@
       var aviso = document.getElementById('aviso-consulta');
       var resultado = document.getElementById('resultado');
 
-      var COMBUSTIVEL = { gasolina: 'Gasolina', hibrido: 'Híbrido', eletrico: 'Elétrico' };
+      var dialogo = document.getElementById('dlg-excluir');
+      var dlgTexto = document.getElementById('dlg-texto');
+      var dlgErro = document.getElementById('dlg-erro');
+      var dlgConfirmar = document.getElementById('dlg-confirmar');
+      var dlgCancelar = document.getElementById('dlg-cancelar');
 
+      var COMBUSTIVEL = { gasolina: 'Gasolina', hibrido: 'Híbrido', eletrico: 'Elétrico' };
+      var ultimaBusca = '';
+      var feedback = '';
+      var carroParaDeletar = null;
+
+      // ---------- busca ----------
       form.addEventListener('submit', function (e) {
         e.preventDefault();
 
@@ -521,9 +578,15 @@
           return;
         }
 
+        ultimaBusca = params.toString();
+        feedback = '';
+        buscar();
+      });
+
+      function buscar() {
         mensagem('Buscando...');
 
-        fetch('/api/car/search?' + params.toString())
+        fetch('/api/car/search?' + ultimaBusca)
           .then(function (r) {
             if (r.status === 401) {
               location.href = '/login.html';
@@ -536,78 +599,327 @@
           .catch(function (erro) {
             if (erro !== 'login') mensagem('Erro ao consultar. Tente novamente.');
           });
-      });
+      }
 
-      function mensagem(texto) {
-        resultado.textContent = '';
+      // POST com os dados como formulário (é o que o servidor sabe ler)
+      function post(url, dados) {
+        return fetch(url, { method: 'POST', body: new URLSearchParams(dados) })
+          .then(function (r) {
+            if (r.status === 401) {
+              location.href = '/login.html';
+              return Promise.reject('login');
+            }
+            return r.text().then(function (t) {
+              return { ok: r.ok, status: r.status, texto: t };
+            });
+          });
+      }
+
+      // ---------- mensagens ----------
+      function dica(texto) {
         var p = document.createElement('p');
         p.className = 'hint';
         p.textContent = texto;
         resultado.appendChild(p);
       }
 
+      function mensagem(texto) {
+        resultado.textContent = '';
+        dica(texto);
+      }
+
+      function mostrarFeedback() {
+        if (!feedback) return;
+        var p = document.createElement('p');
+        p.className = 'alert ok';
+        p.setAttribute('role', 'status');
+        p.textContent = feedback;
+        resultado.appendChild(p);
+        feedback = '';
+      }
+
+      // ---------- lista ----------
       function mostrarLista(carros) {
         resultado.textContent = '';
+        mostrarFeedback();
 
         if (carros.length === 0) {
-          mensagem('Nenhum carro encontrado com esses dados.');
+          dica('Nenhum carro encontrado com esses dados.');
           return;
         }
 
-        var titulo = document.createElement('p');
-        titulo.className = 'hint';
-        titulo.textContent = carros.length + (carros.length === 1 ? ' carro encontrado' : ' carros encontrados');
-        resultado.appendChild(titulo);
+        dica(carros.length + (carros.length === 1 ? ' carro encontrado' : ' carros encontrados'));
 
         var lista = document.createElement('div');
         lista.className = 'lista-carros';
 
         carros.forEach(function (c, i) {
-          var idDetalhes = 'detalhes-' + i;
+          var painel = criarPainel(c, i);
 
-          var botao = document.createElement('button');
-          botao.type = 'button';
-          botao.className = 'btn btn-secondary car-item';
-          botao.textContent = 'Chassi ' + c.num_chassi;
+          var botao = criarBotao('Chassi ' + c.num_chassi, 'btn btn-secondary car-item');
           botao.setAttribute('aria-expanded', 'false');
-          botao.setAttribute('aria-controls', idDetalhes);
-
-          var detalhes = document.createElement('dl');
-          detalhes.className = 'car-detalhes';
-          detalhes.id = idDetalhes;
-          detalhes.hidden = true;
-
-          [
-            ['Placa', c.placa],
-            ['Marca', c.marca],
-            ['Ano', c.ano],
-            ['Cor', c.cor || '—'],
-            ['Combustível', COMBUSTIVEL[c.combustivel] || c.combustivel],
-            ['Capacidade', c.capacidade + ' lugares'],
-            ['Motor', c.motor || '—'],
-            ['Velocidade máxima', c.velocidade + ' km/h']
-          ].forEach(function (par) {
-            var dt = document.createElement('dt');
-            dt.textContent = par[0];
-            var dd = document.createElement('dd');
-            dd.textContent = par[1];
-            detalhes.appendChild(dt);
-            detalhes.appendChild(dd);
-          });
-
+          botao.setAttribute('aria-controls', painel.id);
           botao.addEventListener('click', function () {
-            var abrir = detalhes.hidden;
-            detalhes.hidden = !abrir;
+            var abrir = painel.hidden;
+            painel.hidden = !abrir;
             botao.setAttribute('aria-expanded', String(abrir));
             botao.classList.toggle('aberto', abrir);
           });
 
           lista.appendChild(botao);
-          lista.appendChild(detalhes);
+          lista.appendChild(painel);
         });
 
         resultado.appendChild(lista);
       }
+
+      function criarBotao(texto, classe) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.className = classe;
+        b.textContent = texto;
+        return b;
+      }
+
+      function criarPainel(c, i) {
+        var painel = document.createElement('div');
+        painel.className = 'car-painel';
+        painel.id = 'detalhes-' + i;
+        painel.hidden = true;
+
+        var dl = document.createElement('dl');
+        dl.className = 'car-detalhes';
+        [
+          ['Placa', c.placa],
+          ['Marca', c.marca],
+          ['Ano', c.ano],
+          ['Cor', c.cor || '—'],
+          ['Combustível', COMBUSTIVEL[c.combustivel] || c.combustivel],
+          ['Capacidade', c.capacidade + ' lugares'],
+          ['Motor', c.motor || '—'],
+          ['Velocidade máxima', c.velocidade + ' km/h']
+        ].forEach(function (par) {
+          var dt = document.createElement('dt');
+          dt.textContent = par[0];
+          var dd = document.createElement('dd');
+          dd.textContent = par[1];
+          dl.appendChild(dt);
+          dl.appendChild(dd);
+        });
+        painel.appendChild(dl);
+
+        var edicao = criarEdicao(c, i);
+        edicao.hidden = true;
+
+        var acoes = document.createElement('div');
+        acoes.className = 'acoes';
+        var btnAtualizar = criarBotao('Atualizar', 'btn btn-secondary');
+        var btnDeletar = criarBotao('Deletar', 'btn btn-danger');
+        acoes.appendChild(btnAtualizar);
+        acoes.appendChild(btnDeletar);
+
+        btnAtualizar.addEventListener('click', function () { edicao.hidden = !edicao.hidden; });
+        btnDeletar.addEventListener('click', function () { abrirDialogo(c); });
+
+        painel.appendChild(acoes);
+        painel.appendChild(edicao);
+        return painel;
+      }
+
+      // ---------- atualizar ----------
+      function criarEdicao(c, i) {
+        var f = document.createElement('form');
+        f.className = 'car-edicao';
+
+        var erro = document.createElement('p');
+        erro.className = 'alert';
+        erro.setAttribute('role', 'alert');
+        erro.hidden = true;
+        f.appendChild(erro);
+
+        f.appendChild(linha(
+          campo(i, 'Placa', 'placa', c.placa,
+                { maxlength: '7', pattern: '[A-Za-z]{3}[0-9][A-Za-z][0-9]{2}', title: 'Formato Mercosul (ex.: BRA2E19)', 'class': 'upper' }),
+          campo(i, 'Número do chassi', 'num_chassi', c.num_chassi,
+                { maxlength: '17', pattern: '[0-9]{17}', inputmode: 'numeric', title: 'Exatamente 17 números' })
+        ));
+        f.appendChild(linha(
+          selecao(i, 'Marca', 'marca', c.marca, listaMarcas(c.marca)),
+          campo(i, 'Ano', 'ano', c.ano, { type: 'number', min: '1900', max: '2027', step: '1' })
+        ));
+        f.appendChild(linha(
+          selecao(i, 'Combustível', 'combustivel', c.combustivel,
+                  [['gasolina', 'Gasolina'], ['hibrido', 'Híbrido'], ['eletrico', 'Elétrico']]),
+          campo(i, 'Capacidade de pessoas', 'capacidade', c.capacidade, { type: 'number', min: '1', max: '9', step: '1' })
+        ));
+        f.appendChild(linha(
+          campo(i, 'Cor', 'cor', c.cor || '', { maxlength: '50' }),
+          campo(i, 'Motor', 'motor', c.motor || '', { maxlength: '100' })
+        ));
+        f.appendChild(
+          campo(i, 'Velocidade máxima (km/h)', 'velocidade', c.velocidade, { type: 'number', min: '1', max: '500', step: '1' })
+        );
+
+        var acoes = document.createElement('div');
+        acoes.className = 'acoes';
+        var salvar = document.createElement('button');
+        salvar.type = 'submit';
+        salvar.className = 'btn';
+        salvar.textContent = 'Salvar alterações';
+        var cancelar = criarBotao('Cancelar', 'btn btn-secondary');
+        cancelar.addEventListener('click', function () {
+          f.reset();
+          erro.hidden = true;
+          f.hidden = true;
+        });
+        acoes.appendChild(salvar);
+        acoes.appendChild(cancelar);
+        f.appendChild(acoes);
+
+        f.addEventListener('submit', function (e) {
+          e.preventDefault();
+
+          var dados = { id: c.id };
+          Array.prototype.forEach.call(f.elements, function (el) {
+            if (el.name) dados[el.name] = el.value.trim();
+          });
+          dados.placa = dados.placa.toUpperCase();
+
+          erro.hidden = true;
+          salvar.disabled = true;
+
+          post('/api/car/update', dados)
+            .then(function (r) {
+              if (r.ok) {
+                feedback = 'Carro atualizado com sucesso!';
+                buscar();
+                return;
+              }
+              salvar.disabled = false;
+              erro.textContent =
+                r.status === 409 ? 'Já existe outro carro com essa placa ou esse chassi.' :
+                r.status === 400 ? 'Dados inválidos. Confira os campos.' :
+                'Não foi possível atualizar. Tente novamente.';
+              erro.hidden = false;
+            })
+            .catch(function (motivo) {
+              salvar.disabled = false;
+              if (motivo !== 'login') {
+                erro.textContent = 'Erro de conexão. Tente novamente.';
+                erro.hidden = false;
+              }
+            });
+        });
+
+        return f;
+      }
+
+      function linha(a, b) {
+        var d = document.createElement('div');
+        d.className = 'row';
+        d.appendChild(a);
+        d.appendChild(b);
+        return d;
+      }
+
+      function campo(i, rotulo, nome, valor, attrs) {
+        var div = document.createElement('div');
+        div.className = 'field';
+
+        var id = 'e-' + nome + '-' + i;
+        var label = document.createElement('label');
+        label.htmlFor = id;
+        label.textContent = rotulo;
+
+        var input = document.createElement('input');
+        input.id = id;
+        input.name = nome;
+        input.type = 'text';
+        input.required = true;
+        input.autocomplete = 'off';
+        Object.keys(attrs || {}).forEach(function (k) { input.setAttribute(k, attrs[k]); });
+        input.defaultValue = String(valor);   // defaultValue permite o botão Cancelar restaurar
+
+        div.appendChild(label);
+        div.appendChild(input);
+        return div;
+      }
+
+      function selecao(i, rotulo, nome, valor, opcoes) {
+        var div = document.createElement('div');
+        div.className = 'field';
+
+        var id = 'e-' + nome + '-' + i;
+        var label = document.createElement('label');
+        label.htmlFor = id;
+        label.textContent = rotulo;
+
+        var select = document.createElement('select');
+        select.id = id;
+        select.name = nome;
+        select.required = true;
+        opcoes.forEach(function (o) {
+          var op = document.createElement('option');
+          op.value = o[0];
+          op.textContent = o[1];
+          op.defaultSelected = String(valor).toLowerCase() === o[0].toLowerCase();
+          select.appendChild(op);
+        });
+
+        div.appendChild(label);
+        div.appendChild(select);
+        return div;
+      }
+
+      // reaproveita a lista de marcas do formulário "Adicionar"
+      function listaMarcas(atual) {
+        var marcas = Array.prototype.map.call(
+          document.querySelectorAll('#a-marca option:not([disabled])'),
+          function (o) { return [o.textContent, o.textContent]; }
+        );
+        var existe = marcas.some(function (m) { return m[0].toLowerCase() === String(atual).toLowerCase(); });
+        if (!existe && atual) marcas.unshift([atual, atual]);
+        return marcas;
+      }
+
+      // ---------- deletar (com confirmação) ----------
+      function abrirDialogo(c) {
+        carroParaDeletar = c;
+        dlgTexto.textContent = 'Tem certeza que deseja deletar o carro de placa ' + c.placa +
+                              ' (chassi ' + c.num_chassi + ')? Essa ação não pode ser desfeita.';
+        dlgErro.hidden = true;
+        dlgConfirmar.disabled = false;
+        dialogo.showModal();
+      }
+
+      dlgCancelar.addEventListener('click', function () { dialogo.close(); });
+
+      dlgConfirmar.addEventListener('click', function () {
+        if (!carroParaDeletar) return;
+        dlgConfirmar.disabled = true;
+
+        post('/api/car/delete', { id: carroParaDeletar.id })
+          .then(function (r) {
+            if (r.ok) {
+              dialogo.close();
+              feedback = 'Carro deletado com sucesso.';
+              buscar();
+              return;
+            }
+            dlgConfirmar.disabled = false;
+            dlgErro.textContent = r.status === 404
+              ? 'Esse carro já foi removido.'
+              : 'Não foi possível deletar. Tente novamente.';
+            dlgErro.hidden = false;
+          })
+          .catch(function (motivo) {
+            dlgConfirmar.disabled = false;
+            if (motivo !== 'login') {
+              dlgErro.textContent = 'Erro de conexão. Tente novamente.';
+              dlgErro.hidden = false;
+            }
+          });
+      });
     })();
 
     // Mensagens vindas do servidor (ex.: /home.html?ok=carro)

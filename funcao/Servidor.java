@@ -39,6 +39,7 @@ public class Servidor {
         server.createContext("/api/car/new", Servidor::newCar);
         server.createContext("/api/car/delete", Servidor::deleteCar);
         server.createContext("/api/car/search", Servidor::buscarCarros);
+        server.createContext("/api/car/update", Servidor::updateCar);
         server.createContext("/api/logout", Servidor::tratarLogout);
         server.createContext("/api/me", Servidor::tratarMe);
 
@@ -207,7 +208,140 @@ public class Servidor {
             db.closeConnection();
         }
     }
-    private static void deleteCar(HttpExchange ex) throws IOException {}
+    private static void deleteCar(HttpExchange ex) throws IOException {
+        if (!ex.getRequestMethod().equals("POST")) {
+            enviar(ex, 405, "Use POST");
+            return;
+        }
+        if (emailLogado(ex) == null) {
+            enviar(ex, 401, "Não logado");
+            return;
+        }
+
+        int id;
+        try {
+            id = Integer.parseInt(lerFormulario(ex).getOrDefault("id", "").trim());
+        } catch (NumberFormatException e) {
+            enviar(ex, 400, "Id inválido");
+            return;
+        }
+
+        JdbcConnection db = new JdbcConnection();
+        try {
+            Connection con = db.getConnection();
+            if (con == null) {
+                enviar(ex, 500, "Erro de conexão com o banco");
+                return;
+            }
+
+            try (PreparedStatement ps = con.prepareStatement("DELETE FROM carros WHERE id_carros = ?")) {
+                ps.setInt(1, id);
+                int apagados = ps.executeUpdate();
+                if (apagados == 0) {
+                    enviar(ex, 404, "Carro não encontrado");
+                } else {
+                    enviar(ex, 200, "ok");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            enviar(ex, 500, "Erro ao deletar no banco");
+        } finally {
+            db.closeConnection();
+        }
+    }
+
+    // UPDATE (POST /api/car/update  com id + os campos do carro) //
+    private static void updateCar(HttpExchange ex) throws IOException {
+        if (!ex.getRequestMethod().equals("POST")) {
+            enviar(ex, 405, "Use POST");
+            return;
+        }
+        if (emailLogado(ex) == null) {
+            enviar(ex, 401, "Não logado");
+            return;
+        }
+
+        Map<String, String> campos = lerFormulario(ex);
+        String placa       = campos.getOrDefault("placa", "").trim().toUpperCase();
+        String chassi      = campos.getOrDefault("num_chassi", "").trim();
+        String marca       = campos.getOrDefault("marca", "").trim();
+        String cor         = campos.getOrDefault("cor", "").trim();
+        String combustivel = campos.getOrDefault("combustivel", "").trim().toLowerCase();
+        String motor       = campos.getOrDefault("motor", "").trim();
+
+        int id, ano, capacidade, velocidade;
+        try {
+            id = Integer.parseInt(campos.getOrDefault("id", "").trim());
+            ano = Integer.parseInt(campos.getOrDefault("ano", "").trim());
+            capacidade = Integer.parseInt(campos.getOrDefault("capacidade", "").trim());
+            velocidade = Integer.parseInt(campos.getOrDefault("velocidade", "").trim());
+        } catch (NumberFormatException e) {
+            enviar(ex, 400, "Dados inválidos");
+            return;
+        }
+
+        if (!carroValido(placa, chassi, marca, cor, combustivel, motor, ano, capacidade, velocidade)) {
+            enviar(ex, 400, "Dados inválidos");
+            return;
+        }
+
+        String sql = "UPDATE carros SET placa = ?, num_chassi = ?, marca = ?, ano = ?, cor = ?, "
+                + "combustivel = ?, capacidade = ?, motor = ?, velocidade = ? WHERE id_carros = ?";
+
+        JdbcConnection db = new JdbcConnection();
+        try {
+            Connection con = db.getConnection();
+            if (con == null) {
+                enviar(ex, 500, "Erro de conexão com o banco");
+                return;
+            }
+
+            try (PreparedStatement ps = con.prepareStatement(sql)) {
+                ps.setString(1, placa);
+                ps.setString(2, chassi);
+                ps.setString(3, marca);
+                ps.setInt(4, ano);
+                ps.setString(5, cor);
+                ps.setString(6, combustivel);
+                ps.setInt(7, capacidade);
+                ps.setString(8, motor);
+                ps.setInt(9, velocidade);
+                ps.setInt(10, id);
+
+                if (ps.executeUpdate() == 0) {
+                    enviar(ex, 404, "Carro não encontrado");
+                } else {
+                    enviar(ex, 200, "ok");
+                }
+            }
+        } catch (SQLException e) {
+            if ("23505".equals(e.getSQLState())) {   // placa ou chassi já existem em outro carro
+                enviar(ex, 409, "Placa ou chassi já cadastrados");
+            } else {
+                e.printStackTrace();
+                enviar(ex, 500, "Erro ao atualizar no banco");
+            }
+        } finally {
+            db.closeConnection();
+        }
+    }
+
+    // mesmas validações do newCar, para o servidor não confiar só no HTML
+    private static boolean carroValido(String placa, String chassi, String marca, String cor,
+                                    String combustivel, String motor,
+                                    int ano, int capacidade, int velocidade) {
+        return placa.matches("[A-Z]{3}[0-9][A-Z][0-9]{2}")
+            && chassi.matches("[0-9]{17}")
+            && !marca.isEmpty() && marca.length() <= 50
+            && !cor.isEmpty() && cor.length() <= 50
+            && !motor.isEmpty() && motor.length() <= 100
+            && (combustivel.equals("gasolina") || combustivel.equals("hibrido") || combustivel.equals("eletrico"))
+            && ano >= 1900 && ano <= 2027
+            && capacidade >= 1 && capacidade <= 9
+            && velocidade >= 1 && velocidade <= 500;
+    }
+
     private static void adicionarContem(StringBuilder sql, List<Object> params, String coluna, String valor) {
     valor = valor.trim().replaceAll("[%_\\\\]", "");
     if (valor.isEmpty()) return;
@@ -268,10 +402,10 @@ public class Servidor {
 
     Map<String, String> f = lerQuery(ex);
     StringBuilder sql = new StringBuilder(
-        "SELECT num_chassi, placa, marca, ano, cor, combustivel, capacidade, motor, velocidade "
+        "SELECT id_carros, num_chassi, placa, marca, ano, cor, combustivel, capacidade, motor, velocidade "
       + "FROM carros WHERE 1=1");
     List<Object> params = new ArrayList<>();
-
+    
     try {
         // texto: contém o que foi digitado (sem diferenciar maiúsculas/minúsculas)
         adicionarContem(sql, params, "placa", f.getOrDefault("placa", ""));
@@ -329,6 +463,7 @@ public class Servidor {
                     primeiro = false;
 
                     json.append("{")
+                        .append("\"id\":").append(rs.getInt("id_carros")).append(",")
                         .append("\"num_chassi\":").append(js(rs.getString("num_chassi"))).append(",")
                         .append("\"placa\":").append(js(rs.getString("placa"))).append(",")
                         .append("\"marca\":").append(js(rs.getString("marca"))).append(",")
