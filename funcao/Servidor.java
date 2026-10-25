@@ -121,7 +121,6 @@ public class Servidor {
     //            campos: nome, email, senha, confirmar_senha)
     // ---------------------------------------------------------
     private static void newCar(HttpExchange ex) throws IOException {//os comentarios a seguir não são de IA, mas sim do imbecil do henrique tentando entender essa bomba de linguagem
-           System.out.println("newCar chamado: " + ex.getRequestMethod());
         if (!ex.getRequestMethod().equals("POST")) {
             enviar(ex,405, "Use POST");
             return;
@@ -163,7 +162,6 @@ public class Servidor {
                     enviar(ex, 200, "OK"); 
 
                     }
-                    //redirecionar(ex, "/login.html?ok=1", null);
             } //fecha o primeiro try
 
             catch (NumberFormatException e) {
@@ -174,7 +172,42 @@ public class Servidor {
                 enviar(ex, 500, "Erro no banco");
             }
         }
-    private static void deleteCar(HttpExchange ex) throws IOException {}
+    private static void deleteCar(HttpExchange ex) throws IOException {
+        if (!ex.getRequestMethod().equals("POST")) {
+            enviar(ex, 405, "Use POST");
+            return;
+        }
+
+        Map<String, String> campos = lerFormulario(ex);
+        String placa = campos.getOrDefault("placa", "").trim().toUpperCase();
+        if (placa.isEmpty()) {
+            enviar(ex, 400, "Informe a placa do carro");
+            return;
+        }
+
+        JdbcConnection db = new JdbcConnection();
+        try (Connection con = db.getConnection()) {
+            if (con == null) {
+                enviar(ex, 500, "Sem conexão com o banco");
+                return;
+            }
+
+            String sql = "DELETE FROM carros WHERE placa = ?";
+            try (PreparedStatement stmt = con.prepareStatement(sql)) {
+                stmt.setString(1, placa);
+                int linhas = stmt.executeUpdate();
+                if (linhas == 0) {
+                    enviar(ex, 404, "Carro não encontrado");
+                } else {
+                    enviar(ex, 200, "OK");
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+            enviar(ex, 500, "Erro no banco");
+        }
+    }
+
     private static void tratarCadastro(HttpExchange ex) throws IOException {
         if (!ex.getRequestMethod().equals("POST")) {
             enviar(ex, 405, "Use POST");
