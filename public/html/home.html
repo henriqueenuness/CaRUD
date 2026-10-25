@@ -5,8 +5,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Consulta de Carros</title>
-  .alert.ok { color: var(--accent); border-color: var(--accent); }
-  <style>
+  <!-- Aplica o tema salvo antes de renderizar (evita "flash" de cor) -->
+  <script>
+    (function () {
+      var tema;
+      try { tema = localStorage.getItem('tema'); } catch (e) {}
+      if (tema !== 'light' && tema !== 'dark') {
+        tema = window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+      document.documentElement.dataset.theme = tema;
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Sora:wght@400;600;700&display=swap" rel="stylesheet">
+<style>
     :root {
       --bg: #f4f1ec;
       --card: #ffffff;
@@ -17,6 +30,7 @@
       --accent-hover: #244a40;
       --focus: rgba(47, 93, 80, 0.25);
       --danger: #b42318;
+      --ok: #2f5d50;
       --radius: 12px;
     }
 
@@ -31,6 +45,7 @@
         --accent-hover: #78bba7;
         --focus: rgba(95, 168, 147, 0.3);
         --danger: #f08a80;
+        --ok: #5fa893;
       }
     }
 
@@ -49,9 +64,22 @@
       line-height: 1.5;
     }
 
+    /* o <div> que envolve a barra do usuário e o card */
+    body > div { width: 100%; max-width: 580px; }
+
+    /* Barra do usuário logado */
+    .topo {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 16px;
+      font-size: 0.9rem;
+    }
+    .topo a { color: var(--accent); font-weight: 600; }
+
     .card {
       width: 100%;
-      max-width: 580px;
       background: var(--card);
       border: 1px solid var(--border);
       border-radius: 16px;
@@ -147,6 +175,8 @@
       border-radius: var(--radius);
     }
 
+    .alert.ok { color: var(--ok); border-color: var(--ok); }
+
     .btn {
       display: block;
       width: 100%;
@@ -227,19 +257,6 @@
     }
     .car-detalhes dt { font-weight: 600; }
     .car-detalhes dd { margin: 0; color: var(--muted); }
-
-    /* Barra do usuário logado */
-    .topo {
-      width: 100%;
-      max-width: 580px;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 12px;
-      margin-bottom: 16px;
-      font-size: 0.9rem;
-    }
-    .topo a { color: var(--accent); font-weight: 600; }
   </style>
 </head>
 <body>

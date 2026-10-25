@@ -1,3 +1,4 @@
+import java.sql.Connection;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.IOException;
@@ -7,7 +8,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.SecureRandom;
-import java.sql.Connection;
 import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
@@ -20,7 +20,7 @@ import java.util.List;
 
 public class Servidor {
 
-    private static final int PORTA = 8080;
+    private static final int PORTA = 8081;
     private static final int TAMANHO_MINIMO_SENHA = 8;
     private static final Path PASTA_HTML = Path.of("public/html").toAbsolutePath().normalize();
 
@@ -126,9 +126,10 @@ public class Servidor {
     // CADASTRO  (POST /api/cadastrar
     //            campos: nome, email, senha, confirmar_senha)
     // ---------------------------------------------------------
-    private static void newCar(HttpExchange ex) throws IOException {
+    private static void newCar(HttpExchange ex) throws IOException {//os comentarios a seguir não são de IA, mas sim do imbecil do henrique tentando entender essa bomba de linguagem
+           System.out.println("newCar chamado: " + ex.getRequestMethod());
         if (!ex.getRequestMethod().equals("POST")) {
-            enviar(ex, 405, "Use POST");
+            enviar(ex,405, "Use POST");
             return;
         }
         if (emailLogado(ex) == null) {
