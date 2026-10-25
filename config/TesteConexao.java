@@ -3,7 +3,7 @@ import java.sql.Connection;
 public class TesteConexao {
 
 public static void main(String[] args) {
-JdbcConnection db = new JdbcConnection();
+config db = new config();
 Connection con = db.getConnection();
 
 if (con != null) {
