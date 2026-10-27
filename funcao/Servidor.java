@@ -23,7 +23,7 @@ import java.util.regex.Pattern;
  
 public class Servidor {
  
-    private static final int PORTA = 8081;
+    private static final int PORTA = 8080;
     private static final int TAMANHO_MINIMO_SENHA = 8;
     private static final Path PASTA_HTML = Path.of("public/html").toAbsolutePath().normalize();
  
